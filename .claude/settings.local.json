@@ -36,7 +36,16 @@
       "mcp__GitKraken__git_status",
       "mcp__GitKraken__git_log_or_diff",
       "mcp__GitKraken__git_add_or_commit",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push)",
+      "Bash(bunx vercel)",
+      "Bash(bunx vercel login:*)",
+      "Bash(bunx vercel:*)",
+      "WebFetch(domain:ui.shadcn.com)",
+      "Read(//Users/ppiont/Desktop/**)",
+      "Bash(bunx shadcn@latest init:*)",
+      "Bash(bunx shadcn@latest add:*)"
     ],
     "deny": [],
     "ask": []
