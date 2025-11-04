@@ -6,8 +6,12 @@ import { cn } from "@/lib/utils";
 import { MathRenderer } from "./components/MathRenderer";
 import { ImageUpload } from "./components/ImageUpload";
 
+const STORAGE_KEY = "socratex-messages";
+
 export default function Home() {
-  const chatHelpers = useChat();
+  const chatHelpers = useChat({
+    id: "socratex-session",
+  });
   const { messages, setMessages } = chatHelpers;
 
   const [input, setInput] = useState("");
@@ -22,6 +26,32 @@ export default function Home() {
     latex: string;
   } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Load messages from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsedMessages = JSON.parse(stored);
+        if (Array.isArray(parsedMessages) && parsedMessages.length > 0) {
+          setMessages(parsedMessages);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load messages from localStorage:", error);
+    }
+  }, [setMessages]);
+
+  // Save messages to localStorage whenever they change
+  useEffect(() => {
+    if (messages.length > 0) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+      } catch (error) {
+        console.error("Failed to save messages to localStorage:", error);
+      }
+    }
+  }, [messages]);
 
   // Auto-scroll to latest message
   useEffect(() => {
@@ -67,16 +97,18 @@ export default function Home() {
           problem: data.problem,
           latex: data.latex,
         });
-        // Show confirmation message - would need to be handled differently with useChat
-        // For now, just let user type their question
-        alert(`Extracted: ${data.latex}\n\nNow type your question about this problem.`);
+
+        // Automatically send the extracted problem to the chat
+        const message = `I have this math problem: ${data.latex}\n\nCan you help me solve it?`;
+        await chatHelpers.sendMessage({
+          parts: [{ type: "text", text: message }],
+        });
       } else {
-        // Fallback if OCR fails
-        alert(`OCR failed. Please describe the problem from the image.`);
+        // Fallback if OCR fails - just notify user
+        console.error("OCR failed:", data.error);
       }
     } catch (error) {
       console.error("Failed to extract math:", error);
-      alert(`Failed to extract math. Please describe the problem.`);
     } finally {
       setIsExtracting(false);
     }
@@ -94,6 +126,12 @@ export default function Home() {
     setMessages([]);
     setUploadedImageUrl(null);
     setExtractedProblem(null);
+    // Clear localStorage
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch (error) {
+      console.error("Failed to clear localStorage:", error);
+    }
   };
 
   return (

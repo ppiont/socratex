@@ -1,6 +1,5 @@
 import { generateText } from "ai";
-import { openai } from "@ai-sdk/openai";
-import { google } from "@ai-sdk/google";
+import { anthropic } from "@ai-sdk/anthropic";
 
 export const maxDuration = 30;
 
@@ -45,12 +44,8 @@ export async function POST(req: Request) {
       );
     }
 
-    // Use GPT-4o Vision for production, Gemini Vision for development
-    const isDevelopment = process.env.NODE_ENV === "development";
-
-    const model = isDevelopment
-      ? google("gemini-2.0-flash-exp")
-      : openai("gpt-4o");
+    // Use Claude Sonnet 4.5 for OCR - excellent vision capabilities
+    const model = anthropic("claude-sonnet-4-5");
 
     const result = await generateText({
       model,

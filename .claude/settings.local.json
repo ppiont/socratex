@@ -35,7 +35,8 @@
       "mcp__context7__get-library-docs",
       "mcp__GitKraken__git_status",
       "mcp__GitKraken__git_log_or_diff",
-      "mcp__GitKraken__git_add_or_commit"
+      "mcp__GitKraken__git_add_or_commit",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []
