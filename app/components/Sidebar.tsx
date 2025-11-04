@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -82,9 +81,9 @@ export function Sidebar({
 
   return (
     <>
-      <div className="flex h-full flex-col border-r border-border bg-card">
+      <div className="flex h-full flex-col border-r border-border bg-card overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border px-4 py-4">
+        <div className="shrink-0 flex items-center justify-between border-b border-border px-4 py-4">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
               <Sparkles className="h-4 w-4 text-primary" />
@@ -94,7 +93,7 @@ export function Sidebar({
         </div>
 
         {/* New Chat Button */}
-        <div className="p-3">
+        <div className="shrink-0 p-3">
           <Button
             onClick={onNewSession}
             className="w-full justify-start gap-2"
@@ -106,7 +105,7 @@ export function Sidebar({
         </div>
 
         {/* Chat History */}
-        <ScrollArea className="flex-1 px-3">
+        <div className="flex-1 overflow-y-auto px-3">
           <div className="space-y-6 pb-4">
             {sessions.map((group) => (
               <div key={group.label}>
@@ -184,10 +183,10 @@ export function Sidebar({
               </div>
             ))}
           </div>
-        </ScrollArea>
+        </div>
 
         {/* User Profile */}
-        <div className="border-t border-border p-3">
+        <div className="shrink-0 border-t border-border p-3">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
