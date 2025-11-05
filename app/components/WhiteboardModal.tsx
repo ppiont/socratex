@@ -60,6 +60,10 @@ export function WhiteboardModal({ open, onClose, onSave }: WhiteboardModalProps)
       onSave(base64data, elements);
       onClose();
     };
+    reader.onerror = () => {
+      console.error("Failed to read whiteboard image:", reader.error);
+      alert("Failed to save whiteboard. Please try again.");
+    };
     reader.readAsDataURL(blob);
   }, [excalidrawAPI, onSave, onClose]);
 

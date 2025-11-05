@@ -4,11 +4,11 @@ export const runtime = "edge";
 
 export async function POST(req: NextRequest) {
   try {
-    console.log("==== TEXT-TO-SPEECH REQUEST ====");
-
     // Check if API key is configured
     if (!process.env.ELEVENLABS_API_KEY) {
-      console.error("ELEVENLABS_API_KEY not configured");
+      if (process.env.NODE_ENV === 'development') {
+        console.error("ELEVENLABS_API_KEY not configured");
+      }
       return Response.json(
         { success: false, error: "Text-to-speech service not configured" },
         { status: 500 }
@@ -18,18 +18,22 @@ export async function POST(req: NextRequest) {
     const { text } = await req.json();
 
     if (!text) {
-      console.error("No text provided");
       return Response.json(
         { success: false, error: "No text provided" },
         { status: 400 }
       );
     }
 
-    console.log(`Converting text to speech: ${text.substring(0, 100)}...`);
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`TTS request: ${text.substring(0, 50)}...`);
+    }
 
-    // Call ElevenLabs TTS API
+    // Call ElevenLabs TTS API with timeout
     // Using Callum voice - hoarse, mature, wise-sounding (perfect for Socrates)
     // Using non-streaming endpoint to get complete audio
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
     const response = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/N2lVS1w4EtoT3dr4eOWO`,
       {
@@ -49,19 +53,22 @@ export async function POST(req: NextRequest) {
             use_speaker_boost: true,
           },
         }),
+        signal: controller.signal,
       }
     );
 
+    clearTimeout(timeoutId);
+
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("ElevenLabs API error:", errorText);
+      if (process.env.NODE_ENV === 'development') {
+        console.error("ElevenLabs API error:", errorText);
+      }
       return Response.json(
         { success: false, error: "Failed to generate speech" },
         { status: 500 }
       );
     }
-
-    console.log("TTS successful, streaming audio...");
 
     // Stream the audio response
     return new Response(response.body, {
@@ -71,11 +78,13 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Text-to-speech error:", error);
+    console.error("Text-to-speech error:", {
+      message: error instanceof Error ? error.message : "Unknown error"
+    });
     return Response.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : "Failed to generate speech",
+        error: "Failed to generate speech",
       },
       { status: 500 }
     );

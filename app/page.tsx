@@ -9,6 +9,7 @@ import { Sidebar } from "./components/Sidebar";
 import { VoiceInput } from "./components/VoiceInput";
 import { AudioPlayer } from "./components/AudioPlayer";
 import { WhiteboardModal } from "./components/WhiteboardModal";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -107,7 +108,7 @@ export default function Home() {
 
     container.addEventListener('scroll', handleScroll);
     return () => container.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [messagesContainerRef]);
 
   const scrollToBottom = () => {
     if (messagesContainerRef.current) {
@@ -142,12 +143,22 @@ export default function Home() {
     setIsExtracting(true);
 
     try {
-      // Call OCR endpoint to extract math from image
+      // Call OCR endpoint to extract math from image with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
       const response = await fetch("/api/extract-math", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ imageData: base64 }),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
+
+      if (response.status === 429) {
+        throw new Error("Image processing is busy. Please try again.");
+      }
 
       const data = await response.json();
 
@@ -159,10 +170,16 @@ export default function Home() {
         });
       } else {
         // Fallback if OCR fails - just notify user
-        console.error("OCR failed:", data.error);
+        if (process.env.NODE_ENV === 'development') {
+          console.error("OCR failed:", data.error);
+        }
       }
     } catch (error) {
-      console.error("Failed to extract math:", error);
+      if (error instanceof Error && error.name === 'AbortError') {
+        alert("Image extraction timeout. Please try again.");
+      } else if (process.env.NODE_ENV === 'development') {
+        console.error("Failed to extract math:", error);
+      }
     } finally {
       setIsExtracting(false);
     }
@@ -172,8 +189,6 @@ export default function Home() {
     try {
       // Send whiteboard image directly to vision model for visual understanding
       // This allows geometric diagrams, graphs, and visual concepts - not just equations
-      console.log("Sending whiteboard to chat...");
-
       await chatHelpers.sendMessage({
         parts: [
           {
@@ -187,11 +202,11 @@ export default function Home() {
           },
         ],
       });
-
-      console.log("Whiteboard sent successfully");
     } catch (error) {
-      console.error("Failed to send whiteboard:", error);
-      alert("Failed to send whiteboard. Check console for details.");
+      if (process.env.NODE_ENV === 'development') {
+        console.error("Failed to send whiteboard:", error);
+      }
+      alert("Failed to send whiteboard. Please try again.");
     }
   };
 
@@ -232,7 +247,8 @@ export default function Home() {
   const sessionGroups = groupSessionsByDate(sessions);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <ErrorBoundary>
+      <div className="flex h-screen overflow-hidden bg-background">
       {/* Desktop Sidebar */}
       <aside className="hidden md:block w-64 shrink-0">
         <Sidebar
@@ -449,6 +465,7 @@ export default function Home() {
         onClose={() => setWhiteboardOpen(false)}
         onSave={handleWhiteboardSave}
       />
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 }

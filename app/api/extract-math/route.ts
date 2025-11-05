@@ -44,6 +44,23 @@ export async function POST(req: Request) {
       );
     }
 
+    // Check base64 size (4MB binary ≈ 5.3MB base64)
+    const maxBase64Size = 5.5 * 1024 * 1024; // 5.5MB
+    if (imageData.length > maxBase64Size) {
+      return Response.json(
+        { success: false, error: "Image too large. Maximum 4MB." },
+        { status: 413 }
+      );
+    }
+
+    // Validate it's actually a data URL
+    if (!imageData.startsWith('data:image/')) {
+      return Response.json(
+        { success: false, error: "Invalid image format" },
+        { status: 400 }
+      );
+    }
+
     // Use Claude Sonnet 4.5 for OCR - excellent vision capabilities
     const model = anthropic("claude-sonnet-4-5");
 
@@ -73,7 +90,9 @@ export async function POST(req: Request) {
       parsed = JSON.parse(jsonText);
     } catch (parseError) {
       // If JSON parsing fails, try to extract problem and latex from text
-      console.error("Failed to parse OCR response as JSON:", parseError);
+      if (process.env.NODE_ENV === 'development') {
+        console.error("Failed to parse OCR response as JSON:", parseError);
+      }
 
       // Fallback: use the raw text as the problem
       parsed = {
@@ -88,15 +107,14 @@ export async function POST(req: Request) {
       latex: parsed.latex || result.text,
     });
   } catch (error) {
-    console.error("OCR extraction error:", error);
+    console.error("OCR extraction error:", {
+      message: error instanceof Error ? error.message : "Unknown error"
+    });
 
     return Response.json(
       {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to extract math from image",
+        error: "Failed to extract math from image",
       },
       { status: 500 }
     );

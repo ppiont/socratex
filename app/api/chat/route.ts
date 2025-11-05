@@ -7,20 +7,25 @@ export const maxDuration = 30;
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    console.log("==== INCOMING REQUEST ====");
-    console.log(JSON.stringify(body, null, 2));
 
     const { messages }: { messages: UIMessage[] } = body;
 
     if (!messages || !Array.isArray(messages)) {
-      console.error("Invalid messages:", messages);
+      if (process.env.NODE_ENV === 'development') {
+        console.error("Invalid messages format");
+      }
       return new Response(
         JSON.stringify({ error: "Invalid messages format" }),
         { status: 400 }
       );
     }
 
-    console.log("Calling Claude with", messages.length, "messages");
+    if (process.env.NODE_ENV === 'development') {
+      console.log("Chat request", {
+        messageCount: messages.length,
+        hasAttachments: messages.some(m => m.parts.some(p => p.type === 'file'))
+      });
+    }
 
     // Using Claude Sonnet 4.5 - latest model with superior Socratic reasoning
     const result = streamText({
@@ -30,12 +35,13 @@ export async function POST(req: Request) {
       temperature: 0.7,
     });
 
-    console.log("Streaming response...");
     return result.toUIMessageStreamResponse();
   } catch (error) {
-    console.error("Chat API error:", error);
+    console.error("Chat API error:", {
+      message: error instanceof Error ? error.message : "Unknown error"
+    });
     return new Response(
-      JSON.stringify({ error: "Internal server error", details: String(error) }),
+      JSON.stringify({ error: "Internal server error" }),
       { status: 500 }
     );
   }

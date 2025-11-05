@@ -25,8 +25,16 @@ export function AudioPlayer({ text, messageId, className }: AudioPlayerProps) {
         audioRef.current.pause();
         audioRef.current = null;
       }
+      // Add small delay before revoking to prevent race condition
       if (audioUrlRef.current) {
-        URL.revokeObjectURL(audioUrlRef.current);
+        const urlToRevoke = audioUrlRef.current;
+        setTimeout(() => {
+          try {
+            URL.revokeObjectURL(urlToRevoke);
+          } catch (e) {
+            // URL already revoked or invalid
+          }
+        }, 100);
         audioUrlRef.current = null;
       }
     };
@@ -92,7 +100,9 @@ export function AudioPlayer({ text, messageId, className }: AudioPlayerProps) {
       await audio.play();
       setIsPlaying(true);
     } catch (err) {
-      console.error("TTS error:", err);
+      if (process.env.NODE_ENV === 'development') {
+        console.error("TTS error:", err);
+      }
       setError("Failed to generate speech");
     } finally {
       setIsLoading(false);
