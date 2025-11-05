@@ -60,7 +60,7 @@ export function AttachmentMenu({ onUploadComplete, disabled }: AttachmentMenuPro
         setIsUploading(false);
       };
       reader.readAsDataURL(file);
-    } catch (err) {
+    } catch {
       setError("Failed to process image");
       setIsUploading(false);
     }

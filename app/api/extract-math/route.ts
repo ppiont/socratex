@@ -7,6 +7,7 @@ interface ExtractMathRequest {
   imageData: string; // Base64 data URL
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 interface ExtractMathResponse {
   success: boolean;
   problem?: string;

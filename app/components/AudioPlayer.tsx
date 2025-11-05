@@ -11,7 +11,7 @@ interface AudioPlayerProps {
   className?: string;
 }
 
-export function AudioPlayer({ text, messageId, className }: AudioPlayerProps) {
+export function AudioPlayer({ text, className }: AudioPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +31,7 @@ export function AudioPlayer({ text, messageId, className }: AudioPlayerProps) {
         setTimeout(() => {
           try {
             URL.revokeObjectURL(urlToRevoke);
-          } catch (e) {
+          } catch {
             // URL already revoked or invalid
           }
         }, 100);

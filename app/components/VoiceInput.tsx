@@ -87,7 +87,7 @@ export function VoiceInput({ onTranscript, disabled }: VoiceInputProps) {
           } else {
             setError(data.error || "Failed to transcribe audio");
           }
-        } catch (error) {
+        } catch {
           setError("Network error. Please try again.");
         } finally {
           setIsProcessing(false);
