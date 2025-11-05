@@ -1,7 +1,7 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { MathRenderer } from "./components/MathRenderer";
 import { AttachmentMenu } from "./components/AttachmentMenu";
@@ -17,7 +17,12 @@ import {
   Sheet,
   SheetContent,
 } from "@/components/ui/sheet";
-import { Pi, Menu, ChevronDown, Pencil, Square, RotateCcw, Check, X, Lightbulb, Image, Target } from "lucide-react";
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable";
+import { Pi, Menu, ChevronDown, Pencil, Square, RotateCcw, Check, X, Lightbulb, Image, Target, PanelLeftOpen } from "lucide-react";
 import {
   getAllSessions,
   saveSession,
@@ -45,7 +50,79 @@ export default function Home() {
   const [input, setInput] = useState("");
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarSize, setSidebarSize] = useState(20); // Default to 20% of screen width
+  const [shouldToggle, setShouldToggle] = useState(false); // Flag to trigger programmatic resize
   const isLoading = chatHelpers.status === "streaming" || chatHelpers.status === "submitted";
+  const resizeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isResizingRef = useRef(false);
+  const sidebarPanelRef = useRef<React.ComponentRef<typeof ResizablePanel> | null>(null);
+
+  // Persist sidebar size in localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem("sidebar-size");
+    if (saved !== null) {
+      const parsed = JSON.parse(saved);
+      setSidebarSize(parsed);
+    }
+  }, []);
+
+  // Collapse threshold - when sidebar is less than 8% of screen, consider it collapsed
+  const isCollapsed = sidebarSize < 8;
+
+  // Update panel size programmatically when toggling (without remounting)
+  useEffect(() => {
+    if (shouldToggle && !isResizingRef.current && sidebarPanelRef.current) {
+      const panel = sidebarPanelRef.current as { resize?: (size: number) => void; collapse?: () => void; expand?: () => void };
+      if (isCollapsed && panel.collapse) {
+        panel.collapse();
+      } else if (!isCollapsed && sidebarSize > 0 && panel.resize) {
+        panel.resize(sidebarSize);
+      }
+      setShouldToggle(false); // Reset flag
+    }
+  }, [shouldToggle, isCollapsed, sidebarSize]);
+
+  // Optimized resize handler with snap-to-collapse behavior
+  const handleResize = useCallback((size: number) => {
+    if (!isResizingRef.current) {
+      isResizingRef.current = true;
+    }
+
+    // Snap threshold: if dragged below 8%, snap to 0 (collapsed)
+    const SNAP_THRESHOLD = 8;
+
+    // Update state immediately during drag
+    setSidebarSize(size);
+
+    // Clear existing timeout
+    if (resizeTimeoutRef.current) {
+      clearTimeout(resizeTimeoutRef.current);
+    }
+
+    // After drag ends, check if we need to snap
+    resizeTimeoutRef.current = setTimeout(() => {
+      // If we ended below threshold, snap to collapsed
+      if (size < SNAP_THRESHOLD && size > 0) {
+        setSidebarSize(0);
+        localStorage.setItem("sidebar-size", JSON.stringify(0));
+      } else {
+        localStorage.setItem("sidebar-size", JSON.stringify(size));
+      }
+      isResizingRef.current = false;
+    }, 100); // Short timeout for quick snap after drag ends
+  }, []);
+
+  const toggleSidebar = () => {
+    if (isCollapsed) {
+      // Expand to default size
+      setSidebarSize(20);
+    } else {
+      // Collapse to minimum
+      setSidebarSize(0);
+    }
+    // Trigger programmatic resize via useEffect
+    setShouldToggle(true);
+  };
 
   const [isExtracting, setIsExtracting] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -435,19 +512,7 @@ export default function Home() {
   return (
     <ErrorBoundary>
       <div className="flex h-screen overflow-hidden bg-background">
-        {/* Desktop Sidebar */}
-        <aside className="hidden md:block w-64 shrink-0">
-          <Sidebar
-            sessions={sessionGroups}
-            currentSessionId={currentSessionId}
-            onNewSession={handleNewSession}
-            onSelectSession={handleSelectSession}
-            onDeleteSession={handleDeleteSession}
-            onRenameSession={handleRenameSession}
-          />
-        </aside>
-
-        {/* Mobile Sidebar */}
+        {/* Mobile Sidebar - Sheet */}
         <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
           <SheetContent side="left" className="w-64 p-0">
             <Sidebar
@@ -457,333 +522,381 @@ export default function Home() {
               onSelectSession={handleSelectSession}
               onDeleteSession={handleDeleteSession}
               onRenameSession={handleRenameSession}
+              onToggle={toggleSidebar}
+              isCollapsed={isCollapsed}
             />
           </SheetContent>
         </Sheet>
 
-        {/* Main Content */}
-        <div className="relative flex flex-1 flex-col min-h-0">
-          {/* Mobile menu button - floating */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="md:hidden absolute top-4 left-4 z-50"
-            onClick={() => setSidebarOpen(true)}
+        {/* Desktop Layout with Resizable Sidebar */}
+        <ResizablePanelGroup
+          direction="horizontal"
+          className="hidden md:flex h-screen"
+        >
+          <ResizablePanel
+            ref={sidebarPanelRef}
+            defaultSize={sidebarSize || 20}
+            minSize={8}
+            maxSize={40}
+            collapsible
+            collapsedSize={0}
+            onResize={handleResize}
           >
-            <Menu className="h-5 w-5" />
-          </Button>
+            <div className="h-full overflow-hidden border-r border-border">
+              <Sidebar
+                sessions={sessionGroups}
+                currentSessionId={currentSessionId}
+                onNewSession={handleNewSession}
+                onSelectSession={handleSelectSession}
+                onDeleteSession={handleDeleteSession}
+                onRenameSession={handleRenameSession}
+                onToggle={toggleSidebar}
+                isCollapsed={isCollapsed}
+              />
+            </div>
+          </ResizablePanel>
 
-          {/* Messages Container - Takes full remaining space */}
-          <div ref={messagesContainerRef} className="relative flex-1 overflow-y-auto min-w-0">
-            {displayMessages.length === 0 && (
-              <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                {/* Animated gradient background - full width */}
-                <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-primary/30 rounded-full blur-3xl animate-float"></div>
-                <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-accent/30 rounded-full blur-3xl animate-float" style={{animationDelay: "1s"}}></div>
-              </div>
-            )}
-            <main className="mx-auto w-full max-w-4xl px-6 pt-8 pb-32">
-              {displayMessages.length === 0 ? (
-                <div className="relative flex min-h-[60vh] items-center justify-center text-center">
-                  <div className="relative space-y-12 max-w-xl animate-scale-in">
-                    {/* Enhanced Pi icon with glow */}
-                    <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-primary/20 to-accent/20 backdrop-blur-sm border border-primary/30 shadow-2xl shadow-primary/20 animate-float">
-                      <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-primary/30 to-accent/30 blur-xl animate-glow-pulse"></div>
-                      <Pi className="relative h-12 w-12 text-primary drop-shadow-lg" />
-                    </div>
+          <ResizableHandle className="hidden md:flex" />
 
-                    {/* Enhanced heading with gradient text */}
-                    <div className="space-y-4">
-                      <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-foreground via-primary to-accent bg-clip-text text-transparent leading-tight">
-                        Welcome to Socratex
-                      </h1>
-                      <p className="text-muted-foreground text-lg leading-relaxed">
-                        I&apos;m your AI math tutor. Share a problem and I&apos;ll guide you through solving it using the Socratic method.
-                      </p>
-                    </div>
+          <ResizablePanel defaultSize={isCollapsed ? 100 : 100 - sidebarSize} minSize={60}>
+            {/* Main Content */}
+            <div className="relative flex flex-1 flex-col min-h-0 h-full">
+              {/* Sidebar toggle button - Desktop (top left when collapsed) */}
+              {isCollapsed && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="hidden md:flex absolute top-4 left-4 z-50"
+                  onClick={toggleSidebar}
+                  aria-label="Show sidebar"
+                >
+                  <PanelLeftOpen className="h-5 w-5" />
+                </Button>
+              )}
 
-                    {/* Feature cards */}
-                    <div className="grid gap-4 max-w-sm mx-auto">
-                      <div className="flex items-start gap-3 rounded-lg bg-card/70 backdrop-blur-sm border border-border shadow-md p-4 text-left">
-                        <Lightbulb className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                        <p className="text-muted-foreground">Ask questions to help you think</p>
-                      </div>
-                      <div className="flex items-start gap-3 rounded-lg bg-card/70 backdrop-blur-sm border border-border shadow-md p-4 text-left">
-                        <Image className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                        <p className="text-muted-foreground">Upload images of problems</p>
-                      </div>
-                      <div className="flex items-start gap-3 rounded-lg bg-card/70 backdrop-blur-sm border border-border shadow-md p-4 text-left">
-                        <Target className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                        <p className="text-muted-foreground">Build understanding step-by-step</p>
-                      </div>
-                    </div>
+              {/* Mobile menu button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="md:hidden absolute top-4 left-4 z-50"
+                onClick={() => setSidebarOpen(true)}
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
+
+              {/* Messages Container - Takes full remaining space */}
+              <div ref={messagesContainerRef} className="relative flex-1 overflow-y-auto min-w-0">
+                {displayMessages.length === 0 && (
+                  <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                    {/* Animated gradient background - full width */}
+                    <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-primary/30 rounded-full blur-3xl animate-float"></div>
+                    <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-accent/30 rounded-full blur-3xl animate-float" style={{ animationDelay: "1s" }}></div>
                   </div>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {displayMessages.map((message, index) => (
-                    <div
-                      key={message.id}
-                      className={cn(
-                        "flex gap-3 group",
-                        message.role === "user" ? "justify-end" : "justify-start"
-                      )}
-                    >
-                      {message.role === "assistant" && (
-                        <Avatar className="h-12 w-12 shrink-0 border-2 border-border shadow-lg shadow-black/10">
-                          <AvatarImage src="/socrates.png" alt="Socrates" />
-                          <AvatarFallback className="bg-gradient-to-br from-primary/20 to-accent/10 text-primary text-sm font-semibold">
-                            AI
-                          </AvatarFallback>
-                        </Avatar>
-                      )}
-                      <div className={cn(
-                        "flex flex-col gap-2 max-w-[90%] md:max-w-[75%]",
-                        // Expand to max-width when editing
-                        editingMessageId === message.id && "w-full"
-                      )}>
-                        <div
-                          className={cn(
-                            "rounded-2xl overflow-hidden relative transition-all duration-200",
-                            message.role === "user"
-                              ? "bg-gradient-to-br from-primary to-primary/90 text-primary-foreground shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/25"
-                              : "bg-card border border-border text-card-foreground shadow-md hover:shadow-lg backdrop-blur-sm",
-                            // Expand to full available width when editing
-                            editingMessageId === message.id && "w-full"
-                          )}
-                        >
-                          {/* Copy button inside bubble - top right */}
-                          <MessageActions
-                            content={message.parts
-                              .filter((part) => part.type === "text")
-                              .map((part) => part.text)
-                              .join("\n")}
-                            className="absolute top-2 right-2 z-10"
-                          />
-
-                          {message.parts.map((part, i) => {
-                            if (part.type === "text") {
-                              // Check if this message is being edited
-                              const isEditing = editingMessageId === message.id;
-
-                              return (
-                                <div key={i} className="px-4 py-3 pr-12">
-                                  {isEditing && message.role === "user" ? (
-                                    <textarea
-                                      ref={editTextareaRef}
-                                      value={editingText}
-                                      onChange={(e) => setEditingText(e.target.value)}
-                                      className="w-full bg-transparent text-sm leading-relaxed resize-none focus:outline-none overflow-hidden"
-                                      autoFocus
-                                      rows={1}
-                                    />
-                                  ) : (
-                                    <MathRenderer
-                                      content={part.text}
-                                      className="text-sm leading-relaxed"
-                                    />
-                                  )}
-                                </div>
-                              );
-                            } else if (part.type === "file") {
-                              return (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  key={i}
-                                  src={part.url}
-                                  alt={part.filename || "Whiteboard drawing"}
-                                  className="w-full max-w-md rounded"
-                                />
-                              );
-                            }
-                            return null;
-                          })}
+                )}
+                <main className="mx-auto w-full max-w-4xl px-6 pt-8 pb-32">
+                  {displayMessages.length === 0 ? (
+                    <div className="relative flex min-h-[60vh] items-center justify-center text-center">
+                      <div className="relative space-y-12 max-w-xl animate-scale-in">
+                        {/* Enhanced Pi icon with glow */}
+                        <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-primary/20 to-accent/20 backdrop-blur-sm border border-primary/30 shadow-2xl shadow-primary/20 animate-float">
+                          <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-primary/30 to-accent/30 blur-xl animate-glow-pulse"></div>
+                          <Pi className="relative h-12 w-12 text-primary drop-shadow-lg" />
                         </div>
-                        <div className="flex items-center gap-2 px-2">
-                          {message.role === "user" && editingMessageId === message.id ? (
-                            // Show save/cancel buttons when editing
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleSaveEdit(index)}
-                                className="h-7 w-7 hover:bg-secondary text-green-600"
-                                aria-label="Save edit"
-                              >
-                                <Check className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={handleCancelEdit}
-                                className="h-7 w-7 hover:bg-secondary text-red-600"
-                                aria-label="Cancel edit"
-                              >
-                                <X className="h-3.5 w-3.5" />
-                              </Button>
-                            </>
-                          ) : message.role === "user" ? (
-                            // Show edit button for user messages
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleEditMessage(
-                                message.id,
-                                message.parts.find(p => p.type === "text")?.text || ""
-                              )}
-                              className="h-7 w-7 hover:bg-secondary opacity-0 group-hover:opacity-100 transition-opacity"
-                              aria-label="Edit message"
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                          ) : (
-                            // Show regenerate and audio player for assistant messages
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleRegenerateResponse(index)}
-                                className="h-7 w-7 hover:bg-secondary opacity-0 group-hover:opacity-100 transition-opacity"
-                                aria-label="Regenerate response"
-                              >
-                                <RotateCcw className="h-3.5 w-3.5" />
-                              </Button>
-                              <AudioPlayer
-                                text={message.parts
-                                  .filter((part) => part.type === "text")
-                                  .map((part) => part.text)
-                                  .join(" ")}
-                                messageId={message.id}
-                              />
-                            </>
-                          )}
-                          <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity ml-auto">
-                            {new Date().toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </span>
-                        </div>
-                      </div>
-                      {message.role === "user" && (
-                        <Avatar className="h-12 w-12 shrink-0 border-2 border-border shadow-lg shadow-black/10">
-                          <AvatarFallback className="bg-gradient-to-br from-accent/20 to-primary/10 text-accent font-semibold">
-                            You
-                          </AvatarFallback>
-                        </Avatar>
-                      )}
-                    </div>
-                  ))}
 
-                  {/* Typing indicator - only show before streaming starts */}
-                  {isLoading &&
-                    displayMessages.length > 0 &&
-                    displayMessages[displayMessages.length - 1]?.role !== "assistant" && (
-                      <div className="flex gap-3 animate-scale-in">
-                        <Avatar className="h-12 w-12 shrink-0 border-2 border-border shadow-lg shadow-black/10">
-                          <AvatarImage src="/socrates.png" alt="Socrates" />
-                          <AvatarFallback className="bg-gradient-to-br from-primary/20 to-accent/10 text-primary text-sm font-semibold">
-                            AI
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex flex-col gap-2 max-w-[75%]">
-                          <div className="rounded-2xl overflow-hidden bg-card border border-border text-card-foreground px-4 py-3 shadow-md">
-                            <div className="flex items-center gap-1">
-                              <div className="w-2 h-2 rounded-full bg-muted-foreground/50 animate-bounce [animation-delay:-0.3s]"></div>
-                              <div className="w-2 h-2 rounded-full bg-muted-foreground/50 animate-bounce [animation-delay:-0.15s]"></div>
-                              <div className="w-2 h-2 rounded-full bg-muted-foreground/50 animate-bounce"></div>
-                            </div>
+                        {/* Enhanced heading with gradient text */}
+                        <div className="space-y-4">
+                          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-foreground via-primary to-accent bg-clip-text text-transparent leading-tight">
+                            Welcome to Socratex
+                          </h1>
+                          <p className="text-muted-foreground text-lg leading-relaxed">
+                            I&apos;m your AI math tutor. Share a problem and I&apos;ll guide you through solving it using the Socratic method.
+                          </p>
+                        </div>
+
+                        {/* Feature cards */}
+                        <div className="grid gap-4 max-w-sm mx-auto">
+                          <div className="flex items-start gap-3 rounded-lg bg-card/70 backdrop-blur-sm border border-border shadow-md p-4 text-left">
+                            <Lightbulb className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                            <p className="text-muted-foreground">Ask questions to help you think</p>
+                          </div>
+                          <div className="flex items-start gap-3 rounded-lg bg-card/70 backdrop-blur-sm border border-border shadow-md p-4 text-left">
+                            <Image className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                            <p className="text-muted-foreground">Upload images of problems</p>
+                          </div>
+                          <div className="flex items-start gap-3 rounded-lg bg-card/70 backdrop-blur-sm border border-border shadow-md p-4 text-left">
+                            <Target className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                            <p className="text-muted-foreground">Build understanding step-by-step</p>
                           </div>
                         </div>
                       </div>
-                    )}
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {displayMessages.map((message, index) => (
+                        <div
+                          key={message.id}
+                          className={cn(
+                            "flex gap-3 group",
+                            message.role === "user" ? "justify-end" : "justify-start"
+                          )}
+                        >
+                          {message.role === "assistant" && (
+                            <Avatar className="h-12 w-12 shrink-0 border-2 border-border shadow-lg shadow-black/10">
+                              <AvatarImage src="/socrates.png" alt="Socrates" />
+                              <AvatarFallback className="bg-gradient-to-br from-primary/20 to-accent/10 text-primary text-sm font-semibold">
+                                AI
+                              </AvatarFallback>
+                            </Avatar>
+                          )}
+                          <div className={cn(
+                            "flex flex-col gap-2 max-w-[90%] md:max-w-[75%]",
+                            // Expand to max-width when editing
+                            editingMessageId === message.id && "w-full"
+                          )}>
+                            <div
+                              className={cn(
+                                "rounded-2xl overflow-hidden relative transition-all duration-200",
+                                message.role === "user"
+                                  ? "bg-gradient-to-br from-primary to-primary/90 text-primary-foreground shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/25"
+                                  : "bg-card border border-border text-card-foreground shadow-md hover:shadow-lg backdrop-blur-sm",
+                                // Expand to full available width when editing
+                                editingMessageId === message.id && "w-full"
+                              )}
+                            >
+                              {/* Copy button inside bubble - top right */}
+                              <MessageActions
+                                content={message.parts
+                                  .filter((part) => part.type === "text")
+                                  .map((part) => part.text)
+                                  .join("\n")}
+                                className="absolute top-2 right-2 z-10"
+                              />
 
-                  <div ref={messagesEndRef} />
+                              {message.parts.map((part, i) => {
+                                if (part.type === "text") {
+                                  // Check if this message is being edited
+                                  const isEditing = editingMessageId === message.id;
+
+                                  return (
+                                    <div key={i} className="px-4 py-3 pr-12">
+                                      {isEditing && message.role === "user" ? (
+                                        <textarea
+                                          ref={editTextareaRef}
+                                          value={editingText}
+                                          onChange={(e) => setEditingText(e.target.value)}
+                                          className="w-full bg-transparent text-sm leading-relaxed resize-none focus:outline-none overflow-hidden"
+                                          autoFocus
+                                          rows={1}
+                                        />
+                                      ) : (
+                                        <MathRenderer
+                                          content={part.text}
+                                          className="text-sm leading-relaxed"
+                                        />
+                                      )}
+                                    </div>
+                                  );
+                                } else if (part.type === "file") {
+                                  return (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                      key={i}
+                                      src={part.url}
+                                      alt={part.filename || "Whiteboard drawing"}
+                                      className="w-full max-w-md rounded"
+                                    />
+                                  );
+                                }
+                                return null;
+                              })}
+                            </div>
+                            <div className="flex items-center gap-2 px-2">
+                              {message.role === "user" && editingMessageId === message.id ? (
+                                // Show save/cancel buttons when editing
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleSaveEdit(index)}
+                                    className="h-7 w-7 hover:bg-secondary text-green-600"
+                                    aria-label="Save edit"
+                                  >
+                                    <Check className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={handleCancelEdit}
+                                    className="h-7 w-7 hover:bg-secondary text-red-600"
+                                    aria-label="Cancel edit"
+                                  >
+                                    <X className="h-3.5 w-3.5" />
+                                  </Button>
+                                </>
+                              ) : message.role === "user" ? (
+                                // Show edit button for user messages
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleEditMessage(
+                                    message.id,
+                                    message.parts.find(p => p.type === "text")?.text || ""
+                                  )}
+                                  className="h-7 w-7 hover:bg-secondary opacity-0 group-hover:opacity-100 transition-opacity"
+                                  aria-label="Edit message"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                              ) : (
+                                // Show regenerate and audio player for assistant messages
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleRegenerateResponse(index)}
+                                    className="h-7 w-7 hover:bg-secondary opacity-0 group-hover:opacity-100 transition-opacity"
+                                    aria-label="Regenerate response"
+                                  >
+                                    <RotateCcw className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <AudioPlayer
+                                    text={message.parts
+                                      .filter((part) => part.type === "text")
+                                      .map((part) => part.text)
+                                      .join(" ")}
+                                    messageId={message.id}
+                                  />
+                                </>
+                              )}
+                              <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity ml-auto">
+                                {new Date().toLocaleTimeString([], {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                            </div>
+                          </div>
+                          {message.role === "user" && (
+                            <Avatar className="h-12 w-12 shrink-0 border-2 border-border shadow-lg shadow-black/10">
+                              <AvatarFallback className="bg-gradient-to-br from-accent/20 to-primary/10 text-accent font-semibold">
+                                You
+                              </AvatarFallback>
+                            </Avatar>
+                          )}
+                        </div>
+                      ))}
+
+                      {/* Typing indicator - only show before streaming starts */}
+                      {isLoading &&
+                        displayMessages.length > 0 &&
+                        displayMessages[displayMessages.length - 1]?.role !== "assistant" && (
+                          <div className="flex gap-3 animate-scale-in">
+                            <Avatar className="h-12 w-12 shrink-0 border-2 border-border shadow-lg shadow-black/10">
+                              <AvatarImage src="/socrates.png" alt="Socrates" />
+                              <AvatarFallback className="bg-gradient-to-br from-primary/20 to-accent/10 text-primary text-sm font-semibold">
+                                AI
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex flex-col gap-2 max-w-[75%]">
+                              <div className="rounded-2xl overflow-hidden bg-card border border-border text-card-foreground px-4 py-3 shadow-md">
+                                <div className="flex items-center gap-1">
+                                  <div className="w-2 h-2 rounded-full bg-muted-foreground/50 animate-bounce [animation-delay:-0.3s]"></div>
+                                  <div className="w-2 h-2 rounded-full bg-muted-foreground/50 animate-bounce [animation-delay:-0.15s]"></div>
+                                  <div className="w-2 h-2 rounded-full bg-muted-foreground/50 animate-bounce"></div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                      <div ref={messagesEndRef} />
+                    </div>
+                  )}
+                </main>
+              </div>
+
+              {/* Scroll to bottom button */}
+              {showScrollButton && displayMessages.length > 0 && (
+                <div className="absolute bottom-32 right-8 z-20 animate-scale-in">
+                  <Button
+                    onClick={scrollToBottom}
+                    size="icon"
+                    className="rounded-full shadow-2xl shadow-black/30 hover:shadow-2xl hover:shadow-primary/15 hover:scale-110 transition-all duration-300 bg-card/80 backdrop-blur-xl border border-border/50 hover:bg-secondary hover:border-primary/50"
+                    aria-label="Scroll to bottom"
+                  >
+                    <ChevronDown className="h-5 w-5 text-foreground" />
+                  </Button>
                 </div>
               )}
-            </main>
-          </div>
 
-          {/* Scroll to bottom button */}
-          {showScrollButton && displayMessages.length > 0 && (
-            <div className="absolute bottom-32 right-8 z-20 animate-scale-in">
-              <Button
-                onClick={scrollToBottom}
-                size="icon"
-                className="rounded-full shadow-2xl shadow-black/30 hover:shadow-2xl hover:shadow-primary/15 hover:scale-110 transition-all duration-300 bg-card/80 backdrop-blur-xl border border-border/50 hover:bg-secondary hover:border-primary/50"
-                aria-label="Scroll to bottom"
-              >
-                <ChevronDown className="h-5 w-5 text-foreground" />
-              </Button>
-            </div>
-          )}
+              {/* Absolutely positioned floating input with gradient */}
+              <div className="absolute bottom-0 left-0 right-0 pointer-events-none">
+                {/* Enhanced gradient fade */}
+                <div className="h-32 bg-gradient-to-t from-background via-background/80 to-transparent" />
 
-          {/* Absolutely positioned floating input with gradient */}
-          <div className="absolute bottom-0 left-0 right-0 pointer-events-none">
-            {/* Enhanced gradient fade */}
-            <div className="h-32 bg-gradient-to-t from-background via-background/80 to-transparent" />
-
-            {/* Input area */}
-            <div className="bg-background/90 backdrop-blur-md px-6 pb-6">
-              <div className="mx-auto w-full max-w-4xl pointer-events-auto">
-                {isExtracting && (
-                  <div className="mb-3 flex items-center gap-2 rounded-lg glass p-3 text-sm text-accent shadow-lg animate-scale-in">
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-                    <span>Extracting math from image...</span>
-                  </div>
-                )}
-                <form onSubmit={handleSubmit} className="relative">
-                  <div className="flex items-center gap-3 rounded-full border border-border/50 bg-card/80 backdrop-blur-xl px-5 py-3 shadow-2xl shadow-black/20 transition-all duration-300 focus-within:border-primary/50 focus-within:shadow-2xl focus-within:shadow-primary/10 hover:shadow-2xl hover:shadow-black/30">
-                    <AttachmentMenu
-                      onUploadComplete={handleImageUpload}
-                      disabled={isLoading || isExtracting}
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setWhiteboardOpen(true)}
-                      disabled={isLoading || isExtracting}
-                      className="shrink-0 h-8 w-8"
-                      aria-label="Open whiteboard"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <textarea
-                      ref={inputRef}
-                      value={input}
-                      onChange={(e) => setInput(e.target.value)}
-                      onKeyDown={handleKeyDown}
-                      placeholder="What do you want to know?"
-                      className="flex-1 resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none min-h-[20px] max-h-[200px]"
-                      rows={1}
-                      disabled={isLoading}
-                    />
-                    {isLoading ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={stopGeneration}
-                        className="shrink-0 h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
-                        aria-label="Stop generating"
-                      >
-                        <Square className="h-4 w-4 fill-current" />
-                      </Button>
-                    ) : (
-                      <VoiceInput
-                        onTranscript={(text) => {
-                          setInput(text);
-                        }}
-                        disabled={isLoading || isExtracting}
-                      />
+                {/* Input area */}
+                <div className="bg-background/90 backdrop-blur-md px-6 pb-6">
+                  <div className="mx-auto w-full max-w-4xl pointer-events-auto">
+                    {isExtracting && (
+                      <div className="mb-3 flex items-center gap-2 rounded-lg glass p-3 text-sm text-accent shadow-lg animate-scale-in">
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+                        <span>Extracting math from image...</span>
+                      </div>
                     )}
+                    <form onSubmit={handleSubmit} className="relative">
+                      <div className="flex items-center gap-3 rounded-full border border-border/50 bg-card/80 backdrop-blur-xl px-5 py-3 shadow-2xl shadow-black/20 transition-all duration-300 focus-within:border-primary/50 focus-within:shadow-2xl focus-within:shadow-primary/10 hover:shadow-2xl hover:shadow-black/30">
+                        <AttachmentMenu
+                          onUploadComplete={handleImageUpload}
+                          disabled={isLoading || isExtracting}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setWhiteboardOpen(true)}
+                          disabled={isLoading || isExtracting}
+                          className="shrink-0 h-8 w-8"
+                          aria-label="Open whiteboard"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <textarea
+                          ref={inputRef}
+                          value={input}
+                          onChange={(e) => setInput(e.target.value)}
+                          onKeyDown={handleKeyDown}
+                          placeholder="What do you want to know?"
+                          className="flex-1 resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none min-h-[20px] max-h-[200px]"
+                          rows={1}
+                          disabled={isLoading}
+                        />
+                        {isLoading ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={stopGeneration}
+                            className="shrink-0 h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
+                            aria-label="Stop generating"
+                          >
+                            <Square className="h-4 w-4 fill-current" />
+                          </Button>
+                        ) : (
+                          <VoiceInput
+                            onTranscript={(text) => {
+                              setInput(text);
+                            }}
+                            disabled={isLoading || isExtracting}
+                          />
+                        )}
+                      </div>
+                    </form>
                   </div>
-                </form>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
 
         {/* Whiteboard Modal */}
         <WhiteboardModal

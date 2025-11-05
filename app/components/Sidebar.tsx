@@ -27,6 +27,8 @@ import {
   User,
   Settings,
   Pi,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ChatSession, SessionGroup } from "@/lib/types";
@@ -38,6 +40,8 @@ interface SidebarProps {
   onSelectSession: (sessionId: string) => void;
   onDeleteSession: (sessionId: string) => void;
   onRenameSession: (sessionId: string, title: string) => void;
+  onToggle?: () => void;
+  isCollapsed?: boolean;
 }
 
 export function Sidebar({
@@ -47,6 +51,8 @@ export function Sidebar({
   onSelectSession,
   onDeleteSession,
   onRenameSession,
+  onToggle,
+  isCollapsed = false,
 }: SidebarProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
@@ -83,25 +89,40 @@ export function Sidebar({
     <>
       <div className="flex h-full flex-col border-r border-border bg-card overflow-hidden">
         {/* Header */}
-        <div className="shrink-0 flex items-center justify-between border-b border-border px-4 py-4">
-          <div className="flex items-center gap-2">
-            <div className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 shadow-md">
+        <div className="shrink-0 flex items-center justify-between border-b border-border px-4 py-4 min-w-0">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 shadow-md shrink-0">
               <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-primary/30 to-accent/30 blur-sm"></div>
               <Pi className="relative h-4 w-4 text-primary drop-shadow-md" />
             </div>
-            <span className="font-semibold text-foreground">Socratex</span>
+            <span className="font-semibold text-foreground truncate">Socratex</span>
           </div>
+          {onToggle && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={onToggle}
+              aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {isCollapsed ? (
+                <PanelLeftOpen className="h-4 w-4" />
+              ) : (
+                <PanelLeftClose className="h-4 w-4" />
+              )}
+            </Button>
+          )}
         </div>
 
         {/* New Chat Button */}
         <div className="shrink-0 p-3">
           <Button
             onClick={onNewSession}
-            className="w-full justify-start gap-2 shadow-lg hover:shadow-xl hover:shadow-primary/25 transition-all duration-300"
+            className="w-full justify-start gap-2 shadow-lg hover:shadow-xl hover:shadow-primary/25 transition-all duration-300 min-w-0"
             variant="default"
           >
-            <Plus className="h-4 w-4" />
-            New Chat
+            <Plus className="h-4 w-4 shrink-0" />
+            <span className="truncate">New Chat</span>
           </Button>
         </div>
 
