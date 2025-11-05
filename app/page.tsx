@@ -341,29 +341,76 @@ export default function Home() {
   };
 
   const handleRegenerateResponse = async (messageIndex: number) => {
-    // Find the user message before this assistant message
-    const messagesBeforeAssistant = displayMessages.slice(0, messageIndex);
-    const lastUserMessage = messagesBeforeAssistant.filter(m => m.role === "user").pop();
+    // Modern AI chat behavior (like ChatGPT, Claude, Gemini):
+    // - Keep all messages up to and including the user message
+    // - Remove only the assistant response and everything after
+    // - Regenerate in place
 
-    if (!lastUserMessage) return;
+    // Get messages up to (but not including) the assistant response to regenerate
+    const messagesBeforeRegeneration = displayMessages.slice(0, messageIndex);
 
-    // Remove BOTH the user message and assistant response to avoid duplication
-    // Find the index of the last user message
-    const lastUserMessageIndex = messagesBeforeAssistant.lastIndexOf(lastUserMessage);
-    const messagesBeforeUser = displayMessages.slice(0, lastUserMessageIndex);
+    // Set the conversation state to this point
+    setStreamMessages(messagesBeforeRegeneration);
+    setDisplayMessages(messagesBeforeRegeneration);
 
-    // Update messages to remove both user and assistant messages
-    setStreamMessages(messagesBeforeUser);
-
-    // Mark this session as actively streaming
+    // Mark session as actively streaming
     if (currentSessionId) {
       setActiveStreamingSessionId(currentSessionId);
     }
 
-    // Now send the user message again (this will be appended correctly)
-    await chatHelpers.sendMessage({
-      parts: lastUserMessage.parts,
-    });
+    // Manually trigger API call with the conversation history up to the user message
+    // This avoids sendMessage's behavior of adding a new user message
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: messagesBeforeRegeneration }),
+      });
+
+      if (!response.ok) throw new Error('Failed to regenerate');
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No reader available');
+
+      const decoder = new TextDecoder();
+      let assistantMessage = '';
+      // Create a stable ID for this regenerated message to avoid React key conflicts
+      const regeneratedId = `regenerated-${messageIndex}-${Date.now()}`;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n').filter(line => line.trim());
+
+        for (const line of lines) {
+          if (line.startsWith('0:')) {
+            const jsonStr = line.substring(2);
+            try {
+              const parsed = JSON.parse(jsonStr);
+              if (parsed && typeof parsed === 'string') {
+                assistantMessage += parsed;
+
+                // Update display with streaming text using the same ID
+                const newAssistantMsg = {
+                  id: regeneratedId,
+                  role: 'assistant' as const,
+                  parts: [{ type: 'text' as const, text: assistantMessage }],
+                };
+
+                setDisplayMessages([...messagesBeforeRegeneration, newAssistantMsg]);
+                setStreamMessages([...messagesBeforeRegeneration, newAssistantMsg]);
+              }
+            } catch (e) {
+              // Skip invalid JSON
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Regeneration failed:', error);
+    }
   };
 
   const sessionGroups = groupSessionsByDate(sessions);
