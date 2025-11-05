@@ -341,25 +341,29 @@ export default function Home() {
   };
 
   const handleRegenerateResponse = async (messageIndex: number) => {
-    // Find messages up to but not including the assistant message we're regenerating
-    const messagesUpToIndex = displayMessages.slice(0, messageIndex);
+    // Find the user message before this assistant message
+    const messagesBeforeAssistant = displayMessages.slice(0, messageIndex);
+    const lastUserMessage = messagesBeforeAssistant.filter(m => m.role === "user").pop();
 
-    // Update messages to remove the assistant response
-    setStreamMessages(messagesUpToIndex);
+    if (!lastUserMessage) return;
+
+    // Remove BOTH the user message and assistant response to avoid duplication
+    // Find the index of the last user message
+    const lastUserMessageIndex = messagesBeforeAssistant.lastIndexOf(lastUserMessage);
+    const messagesBeforeUser = displayMessages.slice(0, lastUserMessageIndex);
+
+    // Update messages to remove both user and assistant messages
+    setStreamMessages(messagesBeforeUser);
 
     // Mark this session as actively streaming
     if (currentSessionId) {
       setActiveStreamingSessionId(currentSessionId);
     }
 
-    // Find the last user message parts
-    const lastUserMessage = messagesUpToIndex.filter(m => m.role === "user").pop();
-    if (lastUserMessage && lastUserMessage.parts.length > 0) {
-      // Resend the user message using sendMessage
-      await chatHelpers.sendMessage({
-        parts: lastUserMessage.parts,
-      });
-    }
+    // Now send the user message again (this will be appended correctly)
+    await chatHelpers.sendMessage({
+      parts: lastUserMessage.parts,
+    });
   };
 
   const sessionGroups = groupSessionsByDate(sessions);
