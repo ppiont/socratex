@@ -45,7 +45,7 @@ export function WhiteboardModal({ open, onClose, onSave }: WhiteboardModalProps)
     // Dynamically import exportToBlob to avoid SSR issues
     const { exportToBlob } = await import("@excalidraw/excalidraw");
 
-    // Export as PNG using the exported function
+    // Export as PNG - what you see is what you get
     const blob = await exportToBlob({
       elements,
       appState,
@@ -87,10 +87,10 @@ export function WhiteboardModal({ open, onClose, onSave }: WhiteboardModalProps)
       <div className="absolute top-[73px] bottom-0 left-0 right-0">
         <Excalidraw
           excalidrawAPI={(api) => setExcalidrawAPI(api)}
-          theme="dark"
+          theme="light"
           initialData={{
             appState: {
-              viewBackgroundColor: "#0a0a0a",
+              viewBackgroundColor: "#ffffff",
             },
           }}
         />
