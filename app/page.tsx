@@ -341,76 +341,36 @@ export default function Home() {
   };
 
   const handleRegenerateResponse = async (messageIndex: number) => {
-    // Modern AI chat behavior (like ChatGPT, Claude, Gemini):
-    // - Keep all messages up to and including the user message
-    // - Remove only the assistant response and everything after
-    // - Regenerate in place
+    // Modern AI chat behavior (like ChatGPT, Claude, Gemini, Grok):
+    // - User message stays in original position
+    // - Remove assistant response and everything after it
+    // - Regenerate response in place
 
-    // Get messages up to (but not including) the assistant response to regenerate
-    const messagesBeforeRegeneration = displayMessages.slice(0, messageIndex);
+    // Step 1: Get all messages up to (but not including) the assistant response
+    const messagesUpToUser = displayMessages.slice(0, messageIndex);
 
-    // Set the conversation state to this point
-    setStreamMessages(messagesBeforeRegeneration);
-    setDisplayMessages(messagesBeforeRegeneration);
+    // Step 2: Find the last user message in this slice
+    const lastUserMessage = messagesUpToUser.filter(m => m.role === "user").pop();
+    if (!lastUserMessage) return;
 
-    // Mark session as actively streaming
+    // Step 3: Find the index of this user message
+    const userMessageIndex = messagesUpToUser.lastIndexOf(lastUserMessage);
+
+    // Step 4: Set messages to everything BEFORE the user message
+    // This removes the user message so sendMessage can append it cleanly
+    const messagesBeforeUser = messagesUpToUser.slice(0, userMessageIndex);
+    setStreamMessages(messagesBeforeUser);
+
+    // Step 5: Mark session as actively streaming
     if (currentSessionId) {
       setActiveStreamingSessionId(currentSessionId);
     }
 
-    // Manually trigger API call with the conversation history up to the user message
-    // This avoids sendMessage's behavior of adding a new user message
-    try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: messagesBeforeRegeneration }),
-      });
-
-      if (!response.ok) throw new Error('Failed to regenerate');
-
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error('No reader available');
-
-      const decoder = new TextDecoder();
-      let assistantMessage = '';
-      // Create a stable ID for this regenerated message to avoid React key conflicts
-      const regeneratedId = `regenerated-${messageIndex}-${Date.now()}`;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n').filter(line => line.trim());
-
-        for (const line of lines) {
-          if (line.startsWith('0:')) {
-            const jsonStr = line.substring(2);
-            try {
-              const parsed = JSON.parse(jsonStr);
-              if (parsed && typeof parsed === 'string') {
-                assistantMessage += parsed;
-
-                // Update display with streaming text using the same ID
-                const newAssistantMsg = {
-                  id: regeneratedId,
-                  role: 'assistant' as const,
-                  parts: [{ type: 'text' as const, text: assistantMessage }],
-                };
-
-                setDisplayMessages([...messagesBeforeRegeneration, newAssistantMsg]);
-                setStreamMessages([...messagesBeforeRegeneration, newAssistantMsg]);
-              }
-            } catch (e) {
-              // Skip invalid JSON
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Regeneration failed:', error);
-    }
+    // Step 6: Use sendMessage to append the user message again
+    // This triggers the AI SDK to generate a response
+    await chatHelpers.sendMessage({
+      parts: lastUserMessage.parts,
+    });
   };
 
   const sessionGroups = groupSessionsByDate(sessions);
