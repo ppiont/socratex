@@ -22,7 +22,7 @@ export function VoiceInput({ onTranscript, disabled }: VoiceInputProps) {
   useEffect(() => {
     return () => {
       // Stop recording if component unmounts while recording
-      if (mediaRecorderRef.current && isRecording) {
+      if (mediaRecorderRef.current) {
         mediaRecorderRef.current.stop();
       }
       // Clean up stream
@@ -31,7 +31,7 @@ export function VoiceInput({ onTranscript, disabled }: VoiceInputProps) {
         streamRef.current = null;
       }
     };
-  }, [isRecording]);
+  }, []);
 
   const startRecording = async () => {
     try {
