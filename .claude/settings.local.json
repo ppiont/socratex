@@ -46,7 +46,10 @@
       "Read(//Users/ppiont/Desktop/**)",
       "Bash(bunx shadcn@latest init:*)",
       "Bash(bunx shadcn@latest add:*)",
-      "WebFetch(domain:elevenlabs.io)"
+      "WebFetch(domain:elevenlabs.io)",
+      "Bash(while read f)",
+      "Bash(do echo \"=== $f ===\")",
+      "Bash(done)"
     ],
     "deny": [],
     "ask": []

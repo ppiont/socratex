@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Mic, Square } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -15,7 +15,23 @@ export function VoiceInput({ onTranscript, disabled }: VoiceInputProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+
+  // Cleanup on unmount - prevent memory leak
+  useEffect(() => {
+    return () => {
+      // Stop recording if component unmounts while recording
+      if (mediaRecorderRef.current && isRecording) {
+        mediaRecorderRef.current.stop();
+      }
+      // Clean up stream
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+    };
+  }, [isRecording]);
 
   const startRecording = async () => {
     try {
@@ -35,6 +51,7 @@ export function VoiceInput({ onTranscript, disabled }: VoiceInputProps) {
         }
       });
 
+      streamRef.current = stream; // Store stream in ref for cleanup
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
@@ -52,8 +69,6 @@ export function VoiceInput({ onTranscript, disabled }: VoiceInputProps) {
           type: 'audio/webm;codecs=opus'
         });
 
-        console.log("Audio recorded:", audioBlob.size, "bytes");
-
         // Send to API
         const formData = new FormData();
         formData.append("audio", audioBlob, "recording.webm");
@@ -70,23 +85,23 @@ export function VoiceInput({ onTranscript, disabled }: VoiceInputProps) {
             onTranscript(data.text);
             setError(null);
           } else {
-            console.error("Transcription failed:", data.error);
             setError(data.error || "Failed to transcribe audio");
           }
         } catch (error) {
-          console.error("Error sending audio:", error);
           setError("Network error. Please try again.");
         } finally {
           setIsProcessing(false);
         }
 
         // Clean up stream
-        stream.getTracks().forEach((track) => track.stop());
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach((track) => track.stop());
+          streamRef.current = null;
+        }
       };
 
       mediaRecorder.start();
       setIsRecording(true);
-      console.log("Recording started");
     } catch (error) {
       console.error("Error accessing microphone:", error);
       if (error instanceof Error) {
