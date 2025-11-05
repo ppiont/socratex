@@ -14,7 +14,7 @@ import {
   Sheet,
   SheetContent,
 } from "@/components/ui/sheet";
-import { Pi, Menu } from "lucide-react";
+import { Pi, Menu, ChevronDown } from "lucide-react";
 import {
   getAllSessions,
   saveSession,
@@ -42,6 +42,7 @@ export default function Home() {
   const [isExtracting, setIsExtracting] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const [showScrollButton, setShowScrollButton] = useState(false);
 
   // Initialize sessions and current session on mount
   useEffect(() => {
@@ -90,6 +91,30 @@ export default function Home() {
       messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // Handle scroll to show/hide scroll-to-bottom button
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+      setShowScrollButton(!isNearBottom);
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToBottom = () => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTo({
+        top: messagesContainerRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -325,6 +350,20 @@ export default function Home() {
             )}
           </main>
         </div>
+
+        {/* Scroll to bottom button */}
+        {showScrollButton && messages.length > 0 && (
+          <div className="absolute bottom-32 right-8 z-20">
+            <Button
+              onClick={scrollToBottom}
+              size="icon"
+              className="rounded-full shadow-lg hover:shadow-xl transition-all bg-card border border-border hover:bg-secondary"
+              aria-label="Scroll to bottom"
+            >
+              <ChevronDown className="h-5 w-5 text-foreground" />
+            </Button>
+          </div>
+        )}
 
         {/* Absolutely positioned floating input with gradient */}
         <div className="absolute bottom-0 left-0 right-0 pointer-events-none">
