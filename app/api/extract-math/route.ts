@@ -4,7 +4,7 @@ import { anthropic } from "@ai-sdk/anthropic";
 export const maxDuration = 30;
 
 interface ExtractMathRequest {
-  imageUrl: string;
+  imageData: string; // Base64 data URL
 }
 
 interface ExtractMathResponse {
@@ -35,11 +35,11 @@ Extract the math from this image:`;
 
 export async function POST(req: Request) {
   try {
-    const { imageUrl }: ExtractMathRequest = await req.json();
+    const { imageData }: ExtractMathRequest = await req.json();
 
-    if (!imageUrl) {
+    if (!imageData) {
       return Response.json(
-        { success: false, error: "No image URL provided" },
+        { success: false, error: "No image data provided" },
         { status: 400 }
       );
     }
@@ -56,7 +56,7 @@ export async function POST(req: Request) {
             { type: "text", text: OCR_PROMPT },
             {
               type: "image",
-              image: imageUrl,
+              image: imageData, // Claude accepts base64 data URLs directly
             },
           ],
         },

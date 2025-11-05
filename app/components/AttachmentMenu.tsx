@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useUploadThing } from "@/lib/uploadthing";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,7 +16,7 @@ import {
 } from "lucide-react";
 
 interface AttachmentMenuProps {
-  onUploadComplete: (url: string) => void;
+  onUploadComplete: (base64: string) => void;
   disabled?: boolean;
 }
 
@@ -25,22 +24,6 @@ export function AttachmentMenu({ onUploadComplete, disabled }: AttachmentMenuPro
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
-
-  const { startUpload } = useUploadThing("imageUploader", {
-    onClientUploadComplete: (files) => {
-      if (files && files[0]) {
-        onUploadComplete(files[0].url);
-        setIsUploading(false);
-        setError(null);
-        setIsOpen(false);
-      }
-    },
-    onUploadError: (error: Error) => {
-      console.error("Upload error:", error);
-      setError(error.message || "Failed to upload image");
-      setIsUploading(false);
-    },
-  });
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -63,9 +46,22 @@ export function AttachmentMenu({ onUploadComplete, disabled }: AttachmentMenuPro
     setIsUploading(true);
 
     try {
-      await startUpload([file]);
+      // Convert file to base64
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = reader.result as string;
+        onUploadComplete(base64);
+        setIsUploading(false);
+        setError(null);
+        setIsOpen(false);
+      };
+      reader.onerror = () => {
+        setError("Failed to read image");
+        setIsUploading(false);
+      };
+      reader.readAsDataURL(file);
     } catch (err) {
-      setError("Failed to upload image");
+      setError("Failed to process image");
       setIsUploading(false);
     }
 

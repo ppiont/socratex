@@ -27,10 +27,11 @@ export async function POST(req: NextRequest) {
 
     console.log(`Converting text to speech: ${text.substring(0, 100)}...`);
 
-    // Call ElevenLabs TTS API directly
-    // Using their streaming endpoint for better performance
+    // Call ElevenLabs TTS API
+    // Using Callum voice - hoarse, mature, wise-sounding (perfect for Socrates)
+    // Using non-streaming endpoint to get complete audio
     const response = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM/stream`,
+      `https://api.elevenlabs.io/v1/text-to-speech/N2lVS1w4EtoT3dr4eOWO`,
       {
         method: "POST",
         headers: {
@@ -42,9 +43,9 @@ export async function POST(req: NextRequest) {
           text,
           model_id: "eleven_turbo_v2_5",
           voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.75,
-            style: 0.5,
+            stability: 0.6,
+            similarity_boost: 0.8,
+            style: 0.4,
             use_speaker_boost: true,
           },
         }),

@@ -45,7 +45,8 @@
       "WebFetch(domain:ui.shadcn.com)",
       "Read(//Users/ppiont/Desktop/**)",
       "Bash(bunx shadcn@latest init:*)",
-      "Bash(bunx shadcn@latest add:*)"
+      "Bash(bunx shadcn@latest add:*)",
+      "WebFetch(domain:elevenlabs.io)"
     ],
     "deny": [],
     "ask": []

@@ -138,7 +138,7 @@ export default function Home() {
     }
   };
 
-  const handleImageUpload = async (url: string) => {
+  const handleImageUpload = async (base64: string) => {
     setIsExtracting(true);
 
     try {
@@ -146,7 +146,7 @@ export default function Home() {
       const response = await fetch("/api/extract-math", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageUrl: url }),
+        body: JSON.stringify({ imageData: base64 }),
       });
 
       const data = await response.json();
@@ -370,23 +370,6 @@ export default function Home() {
                     )}
                   </div>
                 ))}
-                {isLoading && (
-                  <div className="flex gap-3 justify-start">
-                    <Avatar className="h-12 w-12 shrink-0 border border-border">
-                      <AvatarImage src="/socrates.png" alt="Socrates" />
-                      <AvatarFallback className="bg-primary/10 text-primary">
-                        AI
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="rounded-2xl bg-card border border-border px-4 py-3">
-                      <div className="flex items-center space-x-2">
-                        <div className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.3s]"></div>
-                        <div className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.15s]"></div>
-                        <div className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground"></div>
-                      </div>
-                    </div>
-                  </div>
-                )}
                 <div ref={messagesEndRef} />
               </div>
             )}
