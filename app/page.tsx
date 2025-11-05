@@ -14,7 +14,7 @@ import {
   Sheet,
   SheetContent,
 } from "@/components/ui/sheet";
-import { Sparkles, Menu } from "lucide-react";
+import { Pi, Menu } from "lucide-react";
 import {
   getAllSessions,
   saveSession,
@@ -207,45 +207,15 @@ export default function Home() {
 
       {/* Main Content */}
       <div className="relative flex flex-1 flex-col min-h-0">
-        {/* Header */}
-        <header className="shrink-0 border-b border-border bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
-          <div className="flex items-center justify-between px-6 py-4">
-            <div className="flex items-center gap-3">
-              {/* Mobile menu button */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="md:hidden"
-                onClick={() => setSidebarOpen(true)}
-              >
-                <Menu className="h-5 w-5" />
-              </Button>
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-                  <Sparkles className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <h1 className="text-lg font-semibold text-foreground">
-                    Socratex
-                  </h1>
-                  <p className="text-xs text-muted-foreground">
-                    AI Math Tutor
-                  </p>
-                </div>
-              </div>
-            </div>
-            {messages.length > 0 && (
-              <Button
-                onClick={handleNewSession}
-                variant="ghost"
-                size="sm"
-                className="text-sm"
-              >
-                New Chat
-              </Button>
-            )}
-          </div>
-        </header>
+        {/* Mobile menu button - floating */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="md:hidden absolute top-4 left-4 z-50"
+          onClick={() => setSidebarOpen(true)}
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
 
         {/* Messages Container - Takes full remaining space */}
         <div ref={messagesContainerRef} className="flex-1 overflow-y-auto min-w-0">
@@ -254,7 +224,7 @@ export default function Home() {
               <div className="flex min-h-[60vh] items-center justify-center text-center">
                 <div className="space-y-6 max-w-md">
                   <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
-                    <Sparkles className="h-8 w-8 text-primary" />
+                    <Pi className="h-8 w-8 text-primary" />
                   </div>
                   <div className="space-y-2">
                     <h2 className="text-2xl font-semibold text-foreground">

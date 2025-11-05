@@ -26,7 +26,7 @@ import {
   Edit2,
   User,
   Settings,
-  Sparkles,
+  Pi,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ChatSession, SessionGroup } from "@/lib/types";
@@ -86,7 +86,7 @@ export function Sidebar({
         <div className="shrink-0 flex items-center justify-between border-b border-border px-4 py-4">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-              <Sparkles className="h-4 w-4 text-primary" />
+              <Pi className="h-4 w-4 text-primary" />
             </div>
             <span className="font-semibold text-foreground">Socratex</span>
           </div>
