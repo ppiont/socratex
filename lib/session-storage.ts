@@ -1,4 +1,4 @@
-import type { Message } from "@ai-sdk/react";
+import type { UIMessage } from "@ai-sdk/react";
 import type { ChatSession, SessionGroup } from "./types";
 
 const SESSIONS_KEY = "socratex-sessions";
@@ -93,7 +93,7 @@ export function setCurrentSessionId(sessionId: string): void {
   }
 }
 
-export function generateSessionTitle(messages: Message[]): string {
+export function generateSessionTitle(messages: UIMessage[]): string {
   // Find the first user message
   const firstUserMessage = messages.find((m) => m.role === "user");
 

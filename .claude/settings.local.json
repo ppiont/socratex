@@ -49,7 +49,8 @@
       "WebFetch(domain:elevenlabs.io)",
       "Bash(while read f)",
       "Bash(do echo \"=== $f ===\")",
-      "Bash(done)"
+      "Bash(done)",
+      "mcp__GitKraken__git_push"
     ],
     "deny": [],
     "ask": []

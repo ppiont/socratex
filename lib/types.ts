@@ -1,9 +1,9 @@
-import type { Message } from "@ai-sdk/react";
+import type { UIMessage } from "@ai-sdk/react";
 
 export interface ChatSession {
   id: string;
   title: string;
-  messages: Message[];
+  messages: UIMessage[];
   createdAt: Date;
   updatedAt: Date;
 }

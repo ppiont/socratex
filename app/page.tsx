@@ -185,7 +185,7 @@ export default function Home() {
     }
   };
 
-  const handleWhiteboardSave = async (imageData: string, elements: any[]) => {
+  const handleWhiteboardSave = async (imageData: string, elements: readonly any[]) => {
     try {
       // Send whiteboard image directly to vision model for visual understanding
       // This allows geometric diagrams, graphs, and visual concepts - not just equations

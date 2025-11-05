@@ -4,8 +4,8 @@ import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { X, Check } from "lucide-react";
 import dynamic from "next/dynamic";
-import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/types";
-import type { ExcalidrawElement } from "@excalidraw/excalidraw/types/element/types";
+import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import "@excalidraw/excalidraw/index.css";
 
 // Dynamically import Excalidraw to avoid SSR issues
@@ -24,7 +24,7 @@ const Excalidraw = dynamic(
 interface WhiteboardModalProps {
   open: boolean;
   onClose: () => void;
-  onSave: (imageData: string, elements: ExcalidrawElement[]) => void;
+  onSave: (imageData: string, elements: readonly ExcalidrawElement[]) => void;
 }
 
 export function WhiteboardModal({ open, onClose, onSave }: WhiteboardModalProps) {
