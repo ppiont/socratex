@@ -85,8 +85,9 @@ export function Sidebar({
         {/* Header */}
         <div className="shrink-0 flex items-center justify-between border-b border-border px-4 py-4">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-              <Pi className="h-4 w-4 text-primary" />
+            <div className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 shadow-md">
+              <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-primary/30 to-accent/30 blur-sm"></div>
+              <Pi className="relative h-4 w-4 text-primary drop-shadow-md" />
             </div>
             <span className="font-semibold text-foreground">Socratex</span>
           </div>
@@ -96,7 +97,7 @@ export function Sidebar({
         <div className="shrink-0 p-3">
           <Button
             onClick={onNewSession}
-            className="w-full justify-start gap-2"
+            className="w-full justify-start gap-2 shadow-lg hover:shadow-xl hover:shadow-primary/25 transition-all duration-300"
             variant="default"
           >
             <Plus className="h-4 w-4" />
@@ -117,10 +118,10 @@ export function Sidebar({
                     <div
                       key={session.id}
                       className={cn(
-                        "group relative flex items-center gap-2 rounded-lg px-3 py-2 transition-colors",
+                        "group relative flex items-center gap-2 rounded-lg px-3 py-2 transition-all duration-200",
                         currentSessionId === session.id
-                          ? "bg-secondary text-secondary-foreground"
-                          : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+                          ? "bg-gradient-to-r from-primary/20 to-accent/10 text-foreground shadow-md border-l-2 border-primary"
+                          : "text-muted-foreground hover:bg-secondary/70 hover:text-foreground hover:shadow-sm hover:border-l-2 hover:border-primary/30"
                       )}
                     >
                       {editingSession === session.id ? (

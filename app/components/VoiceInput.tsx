@@ -134,8 +134,10 @@ export function VoiceInput({ onTranscript, disabled }: VoiceInputProps) {
         disabled={disabled || isProcessing}
         onClick={isRecording ? stopRecording : startRecording}
         className={cn(
-          "h-10 w-10 shrink-0 rounded-full transition-all",
-          isRecording && "bg-destructive hover:bg-destructive/90 animate-pulse"
+          "h-10 w-10 shrink-0 rounded-full transition-all duration-200",
+          isRecording
+            ? "bg-destructive hover:bg-destructive/90 animate-pulse shadow-lg shadow-destructive/30"
+            : "shadow-md hover:shadow-lg hover:shadow-primary/20 hover:scale-[1.05]"
         )}
         title={isRecording ? "Stop recording" : "Start voice input"}
       >
@@ -149,7 +151,7 @@ export function VoiceInput({ onTranscript, disabled }: VoiceInputProps) {
       </Button>
 
       {error && (
-        <div className="absolute bottom-full left-0 mb-2 z-10 w-64 rounded-lg bg-destructive/10 border border-destructive p-3 text-xs text-destructive">
+        <div className="absolute bottom-full left-0 mb-2 z-10 w-64 rounded-lg bg-destructive/10 border border-destructive p-3 text-xs text-destructive shadow-lg animate-scale-in">
           {error}
         </div>
       )}
