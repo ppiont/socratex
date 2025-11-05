@@ -17,7 +17,7 @@ import {
   Sheet,
   SheetContent,
 } from "@/components/ui/sheet";
-import { Pi, Menu, ChevronDown, Pencil, Square, RotateCcw } from "lucide-react";
+import { Pi, Menu, ChevronDown, Pencil, Square, RotateCcw, Check, X } from "lucide-react";
 import {
   getAllSessions,
   saveSession,
@@ -53,6 +53,8 @@ export default function Home() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [whiteboardOpen, setWhiteboardOpen] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState("");
 
   // Initialize sessions and current session on mount
   useEffect(() => {
@@ -373,6 +375,49 @@ export default function Home() {
     });
   };
 
+  const handleEditMessage = (messageId: string, currentText: string) => {
+    setEditingMessageId(messageId);
+    setEditingText(currentText);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    setEditingText("");
+  };
+
+  const handleSaveEdit = async (messageIndex: number) => {
+    if (!editingText.trim()) return;
+
+    // Get messages up to (but not including) the one being edited
+    const messagesBeforeEdit = displayMessages.slice(0, messageIndex);
+    const editedMessage = displayMessages[messageIndex];
+
+    // Update the message with new text
+    const updatedMessage = {
+      ...editedMessage,
+      parts: [{ type: 'text' as const, text: editingText.trim() }],
+    };
+
+    // Set messages to everything BEFORE the edited message
+    // This removes the old version so sendMessage can append the updated version
+    setStreamMessages(messagesBeforeEdit);
+
+    // Clear editing state
+    setEditingMessageId(null);
+    setEditingText("");
+
+    // Mark session as actively streaming
+    if (currentSessionId) {
+      setActiveStreamingSessionId(currentSessionId);
+    }
+
+    // Send the updated message (it will be appended cleanly)
+    // This also generates a new AI response, and removes everything after (branching)
+    await chatHelpers.sendMessage({
+      parts: updatedMessage.parts,
+    });
+  };
+
   const sessionGroups = groupSessionsByDate(sessions);
 
   return (
@@ -484,12 +529,24 @@ export default function Home() {
 
                           {message.parts.map((part, i) => {
                             if (part.type === "text") {
+                              // Check if this message is being edited
+                              const isEditing = editingMessageId === message.id;
+
                               return (
                                 <div key={i} className="px-4 py-3 pr-12">
-                                  <MathRenderer
-                                    content={part.text}
-                                    className="text-sm leading-relaxed"
-                                  />
+                                  {isEditing && message.role === "user" ? (
+                                    <textarea
+                                      value={editingText}
+                                      onChange={(e) => setEditingText(e.target.value)}
+                                      className="w-full min-h-[60px] bg-transparent text-sm leading-relaxed resize-none focus:outline-none"
+                                      autoFocus
+                                    />
+                                  ) : (
+                                    <MathRenderer
+                                      content={part.text}
+                                      className="text-sm leading-relaxed"
+                                    />
+                                  )}
                                 </div>
                               );
                             } else if (part.type === "file") {
@@ -507,7 +564,44 @@ export default function Home() {
                           })}
                         </div>
                         <div className="flex items-center gap-2 px-2">
-                          {message.role === "assistant" && (
+                          {message.role === "user" && editingMessageId === message.id ? (
+                            // Show save/cancel buttons when editing
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleSaveEdit(index)}
+                                className="h-7 w-7 hover:bg-secondary text-green-600"
+                                aria-label="Save edit"
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={handleCancelEdit}
+                                className="h-7 w-7 hover:bg-secondary text-red-600"
+                                aria-label="Cancel edit"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            </>
+                          ) : message.role === "user" ? (
+                            // Show edit button for user messages
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEditMessage(
+                                message.id,
+                                message.parts.find(p => p.type === "text")?.text || ""
+                              )}
+                              className="h-7 w-7 hover:bg-secondary opacity-0 group-hover:opacity-100 transition-opacity"
+                              aria-label="Edit message"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                          ) : (
+                            // Show regenerate and audio player for assistant messages
                             <>
                               <Button
                                 variant="ghost"
