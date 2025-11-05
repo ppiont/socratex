@@ -8,13 +8,14 @@ import { AttachmentMenu } from "./components/AttachmentMenu";
 import { Sidebar } from "./components/Sidebar";
 import { VoiceInput } from "./components/VoiceInput";
 import { AudioPlayer } from "./components/AudioPlayer";
+import { WhiteboardModal } from "./components/WhiteboardModal";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Sheet,
   SheetContent,
 } from "@/components/ui/sheet";
-import { Pi, Menu, ChevronDown } from "lucide-react";
+import { Pi, Menu, ChevronDown, Pencil } from "lucide-react";
 import {
   getAllSessions,
   saveSession,
@@ -43,6 +44,7 @@ export default function Home() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [whiteboardOpen, setWhiteboardOpen] = useState(false);
 
   // Initialize sessions and current session on mount
   useEffect(() => {
@@ -163,6 +165,33 @@ export default function Home() {
       console.error("Failed to extract math:", error);
     } finally {
       setIsExtracting(false);
+    }
+  };
+
+  const handleWhiteboardSave = async (imageData: string, elements: any[]) => {
+    try {
+      // Send whiteboard image directly to vision model for visual understanding
+      // This allows geometric diagrams, graphs, and visual concepts - not just equations
+      console.log("Sending whiteboard to chat...");
+
+      await chatHelpers.sendMessage({
+        parts: [
+          {
+            type: "text",
+            text: "Here's my whiteboard drawing. Can you help me understand this math concept?"
+          },
+          {
+            type: "file",
+            mediaType: "image/png",
+            url: imageData, // data URL is supported by AI SDK
+          },
+        ],
+      });
+
+      console.log("Whiteboard sent successfully");
+    } catch (error) {
+      console.error("Failed to send whiteboard:", error);
+      alert("Failed to send whiteboard. Check console for details.");
     }
   };
 
@@ -293,21 +322,34 @@ export default function Home() {
                     <div className="flex flex-col gap-2 max-w-[75%]">
                       <div
                         className={cn(
-                          "rounded-2xl px-4 py-3",
+                          "rounded-2xl overflow-hidden",
                           message.role === "user"
                             ? "bg-primary text-primary-foreground"
                             : "bg-card border border-border text-card-foreground"
                         )}
                       >
-                        {message.parts
-                          .filter((part) => part.type === "text")
-                          .map((part, i) => (
-                            <MathRenderer
-                              key={i}
-                              content={part.text}
-                              className="text-sm leading-relaxed"
-                            />
-                          ))}
+                        {message.parts.map((part, i) => {
+                          if (part.type === "text") {
+                            return (
+                              <div key={i} className="px-4 py-3">
+                                <MathRenderer
+                                  content={part.text}
+                                  className="text-sm leading-relaxed"
+                                />
+                              </div>
+                            );
+                          } else if (part.type === "file") {
+                            return (
+                              <img
+                                key={i}
+                                src={part.url}
+                                alt={part.filename || "Whiteboard drawing"}
+                                className="w-full max-w-md rounded"
+                              />
+                            );
+                          }
+                          return null;
+                        })}
                       </div>
                       {message.role === "assistant" && (
                         <AudioPlayer
@@ -385,6 +427,17 @@ export default function Home() {
                     onUploadComplete={handleImageUpload}
                     disabled={isLoading || isExtracting}
                   />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setWhiteboardOpen(true)}
+                    disabled={isLoading || isExtracting}
+                    className="shrink-0 h-8 w-8"
+                    aria-label="Open whiteboard"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
                   <textarea
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
@@ -406,6 +459,13 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {/* Whiteboard Modal */}
+      <WhiteboardModal
+        open={whiteboardOpen}
+        onClose={() => setWhiteboardOpen(false)}
+        onSave={handleWhiteboardSave}
+      />
     </div>
   );
 }
