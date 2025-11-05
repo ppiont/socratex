@@ -10,13 +10,14 @@ import { VoiceInput } from "./components/VoiceInput";
 import { AudioPlayer } from "./components/AudioPlayer";
 import { WhiteboardModal } from "./components/WhiteboardModal";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { MessageActions } from "./components/MessageActions";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Sheet,
   SheetContent,
 } from "@/components/ui/sheet";
-import { Pi, Menu, ChevronDown, Pencil } from "lucide-react";
+import { Pi, Menu, ChevronDown, Pencil, Square, Copy, RotateCcw } from "lucide-react";
 import {
   getAllSessions,
   saveSession,
@@ -30,13 +31,18 @@ import {
 import type { ChatSession } from "@/lib/types";
 
 export default function Home() {
-  const chatHelpers = useChat({
-    id: "socratex-session",
-  });
-  const { messages, setMessages } = chatHelpers;
-
-  const [input, setInput] = useState("");
   const [currentSessionId, setCurrentSessionIdState] = useState<string | null>(null);
+  const [activeStreamingSessionId, setActiveStreamingSessionId] = useState<string | null>(null);
+
+  // Use a stable ID for the chat hook to prevent stream cancellation when switching sessions
+  const chatHelpers = useChat({
+    id: "socratex-active-chat",
+  });
+  const { messages: streamMessages, setMessages: setStreamMessages, stop: stopGeneration } = chatHelpers;
+
+  // Display messages - either from the active stream or loaded from a session
+  const [displayMessages, setDisplayMessages] = useState<typeof streamMessages>([]);
+  const [input, setInput] = useState("");
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const isLoading = chatHelpers.status === "streaming" || chatHelpers.status === "submitted";
@@ -44,6 +50,7 @@ export default function Home() {
   const [isExtracting, setIsExtracting] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [whiteboardOpen, setWhiteboardOpen] = useState(false);
 
@@ -57,26 +64,37 @@ export default function Home() {
       const session = allSessions.find((s) => s.id === savedSessionId);
       if (session) {
         setCurrentSessionIdState(savedSessionId);
-        setMessages(session.messages);
+        setDisplayMessages(session.messages);
+        setStreamMessages(session.messages);
       }
     }
-  }, [setMessages]);
+  }, [setStreamMessages]);
 
-  // Save current session whenever messages change
+  // Sync stream messages to display when viewing the active streaming session
   useEffect(() => {
-    if (messages.length === 0) return;
-
-    const sessionId = currentSessionId || `session-${Date.now()}`;
-
-    if (!currentSessionId) {
-      setCurrentSessionIdState(sessionId);
-      setCurrentSessionId(sessionId);
+    // If we're viewing the session that's currently streaming, show live updates
+    if (activeStreamingSessionId && currentSessionId === activeStreamingSessionId) {
+      setDisplayMessages(streamMessages);
     }
+  }, [streamMessages, activeStreamingSessionId, currentSessionId]);
+
+  // Clear active streaming session when stream completes
+  useEffect(() => {
+    if (!isLoading && activeStreamingSessionId) {
+      // Stream has completed, clear the active streaming flag
+      setActiveStreamingSessionId(null);
+    }
+  }, [isLoading, activeStreamingSessionId]);
+
+  // Save streaming session whenever stream messages change
+  useEffect(() => {
+    if (streamMessages.length === 0) return;
+    if (!activeStreamingSessionId) return;
 
     const session: ChatSession = {
-      id: sessionId,
-      title: generateSessionTitle(messages),
-      messages,
+      id: activeStreamingSessionId,
+      title: generateSessionTitle(streamMessages),
+      messages: streamMessages,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -86,14 +104,19 @@ export default function Home() {
     // Update sessions list
     const allSessions = getAllSessions();
     setSessions(allSessions);
-  }, [messages, currentSessionId]);
+
+    // If viewing this session, update display
+    if (currentSessionId === activeStreamingSessionId) {
+      setDisplayMessages(streamMessages);
+    }
+  }, [streamMessages, activeStreamingSessionId, currentSessionId]);
 
   // Auto-scroll to latest message
   useEffect(() => {
     if (messagesContainerRef.current) {
       messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [displayMessages]);
 
   // Handle scroll to show/hide scroll-to-bottom button
   useEffect(() => {
@@ -110,6 +133,32 @@ export default function Home() {
     return () => container.removeEventListener('scroll', handleScroll);
   }, [messagesContainerRef]);
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd/Ctrl + L: Focus input
+      if ((e.metaKey || e.ctrlKey) && e.key === 'l') {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
+
+      // Cmd/Ctrl + N: New chat
+      if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
+        e.preventDefault();
+        handleNewSession();
+      }
+
+      // Escape: Stop generation if loading
+      if (e.key === 'Escape' && isLoading) {
+        e.preventDefault();
+        stopGeneration();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isLoading, stopGeneration]);
+
   const scrollToBottom = () => {
     if (messagesContainerRef.current) {
       messagesContainerRef.current.scrollTo({
@@ -125,6 +174,16 @@ export default function Home() {
 
     const messageContent = input.trim();
     setInput("");
+
+    // Create or use current session for this message
+    const sessionId = currentSessionId || `session-${Date.now()}`;
+    if (!currentSessionId) {
+      setCurrentSessionIdState(sessionId);
+      setCurrentSessionId(sessionId);
+    }
+
+    // Mark this session as actively streaming
+    setActiveStreamingSessionId(sessionId);
 
     await chatHelpers.sendMessage({
       parts: [{ type: "text", text: messageContent }],
@@ -163,6 +222,14 @@ export default function Home() {
       const data = await response.json();
 
       if (data.success && data.latex) {
+        // Create or use current session
+        const sessionId = currentSessionId || `session-${Date.now()}`;
+        if (!currentSessionId) {
+          setCurrentSessionIdState(sessionId);
+          setCurrentSessionId(sessionId);
+        }
+        setActiveStreamingSessionId(sessionId);
+
         // Automatically send the extracted problem to the chat
         const message = `I have this math problem: ${data.latex}\n\nCan you help me solve it?`;
         await chatHelpers.sendMessage({
@@ -187,6 +254,14 @@ export default function Home() {
 
   const handleWhiteboardSave = async (imageData: string, elements: readonly any[]) => {
     try {
+      // Create or use current session
+      const sessionId = currentSessionId || `session-${Date.now()}`;
+      if (!currentSessionId) {
+        setCurrentSessionIdState(sessionId);
+        setCurrentSessionId(sessionId);
+      }
+      setActiveStreamingSessionId(sessionId);
+
       // Send whiteboard image directly to vision model for visual understanding
       // This allows geometric diagrams, graphs, and visual concepts - not just equations
       await chatHelpers.sendMessage({
@@ -211,18 +286,32 @@ export default function Home() {
   };
 
   const handleNewSession = () => {
-    setMessages([]);
+    // Clear all state when starting a new session
+    setInput("");
+    setDisplayMessages([]);
+    setStreamMessages([]);
     setCurrentSessionIdState(null);
     setCurrentSessionId("");
+    setActiveStreamingSessionId(null);
     setSidebarOpen(false);
   };
 
   const handleSelectSession = (sessionId: string) => {
     const session = sessions.find((s) => s.id === sessionId);
     if (session) {
+      // Clear any ongoing input before switching
+      setInput("");
       setCurrentSessionIdState(sessionId);
       setCurrentSessionId(sessionId);
-      setMessages(session.messages);
+
+      // If this is the actively streaming session, show stream messages
+      // Otherwise, load the saved session messages
+      if (sessionId === activeStreamingSessionId) {
+        setDisplayMessages(streamMessages);
+      } else {
+        setDisplayMessages(session.messages);
+      }
+
       setSidebarOpen(false);
     }
   };
@@ -242,6 +331,28 @@ export default function Home() {
     updateSessionTitle(sessionId, title);
     const allSessions = getAllSessions();
     setSessions(allSessions);
+  };
+
+  const handleRegenerateResponse = async (messageIndex: number) => {
+    // Find messages up to but not including the assistant message we're regenerating
+    const messagesUpToIndex = displayMessages.slice(0, messageIndex);
+
+    // Update messages to remove the assistant response
+    setStreamMessages(messagesUpToIndex);
+
+    // Mark this session as actively streaming
+    if (currentSessionId) {
+      setActiveStreamingSessionId(currentSessionId);
+    }
+
+    // Find the last user message parts
+    const lastUserMessage = messagesUpToIndex.filter(m => m.role === "user").pop();
+    if (lastUserMessage && lastUserMessage.parts.length > 0) {
+      // Resend the user message using sendMessage
+      await chatHelpers.sendMessage({
+        parts: lastUserMessage.parts,
+      });
+    }
   };
 
   const sessionGroups = groupSessionsByDate(sessions);
@@ -290,7 +401,7 @@ export default function Home() {
         {/* Messages Container - Takes full remaining space */}
         <div ref={messagesContainerRef} className="flex-1 overflow-y-auto min-w-0">
           <main className="mx-auto w-full max-w-4xl px-6 pt-8 pb-32">
-            {messages.length === 0 ? (
+            {displayMessages.length === 0 ? (
               <div className="flex min-h-[60vh] items-center justify-center text-center">
                 <div className="space-y-6 max-w-md">
                   <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
@@ -319,11 +430,11 @@ export default function Home() {
               </div>
             ) : (
               <div className="space-y-6">
-                {messages.map((message) => (
+                {displayMessages.map((message, index) => (
                   <div
                     key={message.id}
                     className={cn(
-                      "flex gap-3",
+                      "flex gap-3 group",
                       message.role === "user" ? "justify-end" : "justify-start"
                     )}
                   >
@@ -335,19 +446,28 @@ export default function Home() {
                         </AvatarFallback>
                       </Avatar>
                     )}
-                    <div className="flex flex-col gap-2 max-w-[75%]">
+                    <div className="flex flex-col gap-2 max-w-[75%] md:max-w-[75%] max-w-[90%]">
                       <div
                         className={cn(
-                          "rounded-2xl overflow-hidden",
+                          "rounded-2xl overflow-hidden relative",
                           message.role === "user"
                             ? "bg-primary text-primary-foreground"
                             : "bg-card border border-border text-card-foreground"
                         )}
                       >
+                        {/* Copy button inside bubble - top right */}
+                        <MessageActions
+                          content={message.parts
+                            .filter((part) => part.type === "text")
+                            .map((part) => part.text)
+                            .join("\n")}
+                          className="absolute top-2 right-2 z-10"
+                        />
+
                         {message.parts.map((part, i) => {
                           if (part.type === "text") {
                             return (
-                              <div key={i} className="px-4 py-3">
+                              <div key={i} className="px-4 py-3 pr-12">
                                 <MathRenderer
                                   content={part.text}
                                   className="text-sm leading-relaxed"
@@ -367,15 +487,34 @@ export default function Home() {
                           return null;
                         })}
                       </div>
-                      {message.role === "assistant" && (
-                        <AudioPlayer
-                          text={message.parts
-                            .filter((part) => part.type === "text")
-                            .map((part) => part.text)
-                            .join(" ")}
-                          messageId={message.id}
-                        />
-                      )}
+                      <div className="flex items-center gap-2 px-2">
+                        {message.role === "assistant" && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleRegenerateResponse(index)}
+                              className="h-7 w-7 hover:bg-secondary opacity-0 group-hover:opacity-100 transition-opacity"
+                              aria-label="Regenerate response"
+                            >
+                              <RotateCcw className="h-3.5 w-3.5" />
+                            </Button>
+                            <AudioPlayer
+                              text={message.parts
+                                .filter((part) => part.type === "text")
+                                .map((part) => part.text)
+                                .join(" ")}
+                              messageId={message.id}
+                            />
+                          </>
+                        )}
+                        <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity ml-auto">
+                          {new Date().toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      </div>
                     </div>
                     {message.role === "user" && (
                       <Avatar className="h-12 w-12 shrink-0 border border-border">
@@ -386,6 +525,30 @@ export default function Home() {
                     )}
                   </div>
                 ))}
+
+                {/* Typing indicator - only show before streaming starts */}
+                {isLoading &&
+                 displayMessages.length > 0 &&
+                 displayMessages[displayMessages.length - 1]?.role !== "assistant" && (
+                  <div className="flex gap-3">
+                    <Avatar className="h-12 w-12 shrink-0 border border-border">
+                      <AvatarImage src="/socrates.png" alt="Socrates" />
+                      <AvatarFallback className="bg-primary/10 text-primary text-sm">
+                        AI
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex flex-col gap-2 max-w-[75%]">
+                      <div className="rounded-2xl overflow-hidden bg-card border border-border text-card-foreground px-4 py-3">
+                        <div className="flex items-center gap-1">
+                          <div className="w-2 h-2 rounded-full bg-muted-foreground/50 animate-bounce [animation-delay:-0.3s]"></div>
+                          <div className="w-2 h-2 rounded-full bg-muted-foreground/50 animate-bounce [animation-delay:-0.15s]"></div>
+                          <div className="w-2 h-2 rounded-full bg-muted-foreground/50 animate-bounce"></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div ref={messagesEndRef} />
               </div>
             )}
@@ -393,7 +556,7 @@ export default function Home() {
         </div>
 
         {/* Scroll to bottom button */}
-        {showScrollButton && messages.length > 0 && (
+        {showScrollButton && displayMessages.length > 0 && (
           <div className="absolute bottom-32 right-8 z-20">
             <Button
               onClick={scrollToBottom}
@@ -438,6 +601,7 @@ export default function Home() {
                     <Pencil className="h-4 w-4" />
                   </Button>
                   <textarea
+                    ref={inputRef}
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
@@ -446,12 +610,25 @@ export default function Home() {
                     rows={1}
                     disabled={isLoading}
                   />
-                  <VoiceInput
-                    onTranscript={(text) => {
-                      setInput(text);
-                    }}
-                    disabled={isLoading || isExtracting}
-                  />
+                  {isLoading ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={stopGeneration}
+                      className="shrink-0 h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
+                      aria-label="Stop generating"
+                    >
+                      <Square className="h-4 w-4 fill-current" />
+                    </Button>
+                  ) : (
+                    <VoiceInput
+                      onTranscript={(text) => {
+                        setInput(text);
+                      }}
+                      disabled={isLoading || isExtracting}
+                    />
+                  )}
                 </div>
               </form>
             </div>
