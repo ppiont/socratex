@@ -522,16 +522,18 @@ export default function Home() {
                         </Avatar>
                       )}
                       <div className={cn(
-                        "flex flex-col gap-2",
-                        // Expand to full width when editing, otherwise constrain to 75%
-                        editingMessageId === message.id ? "max-w-full" : "max-w-[90%] md:max-w-[75%]"
+                        "flex flex-col gap-2 max-w-[90%] md:max-w-[75%]",
+                        // Expand to max-width when editing
+                        editingMessageId === message.id && "w-full"
                       )}>
                         <div
                           className={cn(
                             "rounded-2xl overflow-hidden relative",
                             message.role === "user"
                               ? "bg-primary text-primary-foreground"
-                              : "bg-card border border-border text-card-foreground"
+                              : "bg-card border border-border text-card-foreground",
+                            // Expand to full available width when editing
+                            editingMessageId === message.id && "w-full"
                           )}
                         >
                           {/* Copy button inside bubble - top right */}
