@@ -55,6 +55,7 @@ export default function Home() {
   const [whiteboardOpen, setWhiteboardOpen] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Initialize sessions and current session on mount
   useEffect(() => {
@@ -375,6 +376,17 @@ export default function Home() {
     });
   };
 
+  // Auto-resize textarea to fit content
+  useEffect(() => {
+    const textarea = editTextareaRef.current;
+    if (textarea && editingMessageId) {
+      // Reset height to auto to get the correct scrollHeight
+      textarea.style.height = 'auto';
+      // Set height to scrollHeight to fit all content
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    }
+  }, [editingText, editingMessageId]);
+
   const handleEditMessage = (messageId: string, currentText: string) => {
     setEditingMessageId(messageId);
     setEditingText(currentText);
@@ -536,10 +548,12 @@ export default function Home() {
                                 <div key={i} className="px-4 py-3 pr-12">
                                   {isEditing && message.role === "user" ? (
                                     <textarea
+                                      ref={editTextareaRef}
                                       value={editingText}
                                       onChange={(e) => setEditingText(e.target.value)}
-                                      className="w-full min-h-[60px] bg-transparent text-sm leading-relaxed resize-none focus:outline-none"
+                                      className="w-full bg-transparent text-sm leading-relaxed resize-none focus:outline-none overflow-hidden"
                                       autoFocus
+                                      rows={1}
                                     />
                                   ) : (
                                     <MathRenderer
