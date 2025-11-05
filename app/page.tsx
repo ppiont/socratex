@@ -521,7 +521,11 @@ export default function Home() {
                           </AvatarFallback>
                         </Avatar>
                       )}
-                      <div className="flex flex-col gap-2 max-w-[90%] md:max-w-[75%]">
+                      <div className={cn(
+                        "flex flex-col gap-2",
+                        // Expand to full width when editing, otherwise constrain to 75%
+                        editingMessageId === message.id ? "max-w-full" : "max-w-[90%] md:max-w-[75%]"
+                      )}>
                         <div
                           className={cn(
                             "rounded-2xl overflow-hidden relative",
